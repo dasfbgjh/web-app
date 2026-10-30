@@ -1,0 +1,67 @@
+.context-menu {
+    position: fixed;
+    display: none;
+    background: rgba(40, 40, 55, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 4px 0;
+    min-width: 160px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+    color: #cdd6f4;
+}
+
+.context-menu .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-radius: 4px;
+    margin: 0 4px;
+}
+
+.context-menu .menu-item:hover {
+    background: rgba(137, 180, 250, 0.15);
+}
+
+.context-menu .menu-item:active {
+    background: rgba(137, 180, 250, 0.25);
+}
+
+.context-menu .menu-item.disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.context-menu .menu-item.disabled:hover {
+    background: none;
+}
+
+.context-menu .menu-item .icon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.context-menu .menu-item .label {
+    flex: 1;
+    white-space: nowrap;
+}
+
+.context-menu .menu-item .shortcut {
+    color: #6c7086;
+    font-size: 12px;
+    margin-left: 20px;
+}
+
+.context-menu .menu-separator {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    margin: 4px 12px;
+}

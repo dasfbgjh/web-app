@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Popup & Overlay Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            background: #1e1e2e;
+            overflow: hidden;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            font-size: 13px;
+            color: #cdd6f4;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .page {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 300;
+        }
+
+        .panel {
+            background: #313244;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .panel h2 {
+            font-size: 15px;
+            font-weight: 500;
+            color: #89b4fa;
+        }
+
+        .panel p {
+            font-size: 12px;
+            color: #6c7086;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #45475a;
+            color: #cdd6f4;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn:hover {
+            background: #585b70;
+        }
+
+        .btn:active {
+            background: #6c7086;
+        }
+
+        .log {
+            background: #1e1e2e;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+            font-size: 12px;
+            color: #a6e3a1;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 160px;
+            overflow-y: auto;
+            min-height: 32px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <h1>Popup & Overlay 测试</h1>
+
+        <div class="panel">
+            <h2>Popup（单例，右键菜单 / 提示）</h2>
+            <p>右键点击页面任意位置弹出菜单</p>
+            <div class="row">
+                <button class="btn" onclick="showContextMenu(event)">右键菜单（按钮触发）</button>
+                <button class="btn" onclick="showPopupTip(event)">Popup 提示</button>
+            </div>
+            <div class="log" id="popupLog">等待操作...</div>
+        </div>
+
+        <div class="panel">
+            <h2>Overlay（多内容块共存，空白穿透）</h2>
+            <div class="row">
+                <button class="btn" onclick="addNotif()">叠加通知</button>
+                <button class="btn" onclick="addTip(event)">叠加提示</button>
+                <button class="btn" onclick="addDialog()">对话框</button>
+                <button class="btn" onclick="addClock(event)">时钟</button>
+                <button class="btn" onclick="addExecutor(event)">执行器</button>
+                <button class="btn" onclick="removeLast()">移除最后一个</button>
+                <button class="btn"
+                    onclick="window.native.clearOverlay(); overlayIds.length=0; updateLog()">清空全部</button>
+            </div>
+            <div class="log" id="overlayLog">overlay 计数: 0</div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            window.native.showPopup('context-menu', e.screenX, e.screenY, {
+                items: [
+                    { id: 'copy', label: '复制', icon: '📋', shortcut: 'Ctrl+C' },
+                    { id: 'paste', label: '粘贴', icon: '📌', shortcut: 'Ctrl+V' },
+                    { id: 'cut', label: '剪切', icon: '✂️', shortcut: 'Ctrl+X' },
+                    { separator: true },
+                    { id: 'selectAll', label: '全选', shortcut: 'Ctrl+A' },
+                    { separator: true },
+                    { id: 'refresh', label: '刷新', icon: '🔄', shortcut: 'F5' },
+                    { id: 'devtools', label: '开发者工具', icon: '🛠️', shortcut: 'F12' },
+                    { separator: true },
+                    { id: 'about', label: '关于', icon: 'ℹ️' },
+                    { id: 'disabled', label: '不可用项', disabled: true }
+                ]
+            });
+        });
+
+        function showContextMenu(e) {
+            window.native.showPopup('context-menu', e.screenX, e.screenY, {
+                items: [
+                    { id: 'copy', label: '复制', shortcut: 'Ctrl+C' },
+                    { id: 'paste', label: '粘贴', shortcut: 'Ctrl+V' },
+                    { separator: true },
+                    { id: 'delete', label: '删除', shortcut: 'Del' }
+                ]
+            });
+        }
+
+        function showPopupTip(e) {
+            window.native.showPopup('tooltip', e.screenX, e.screenY + 20, {
+                text: '点击空白处关闭此提示'
+            });
+        }
+
+        let counter = 0;
+        const overlayIds = [];
+
+        function updateLog() {
+            document.getElementById('overlayLog').textContent =
+                'overlay 计数: ' + counter + '，活跃: [' + overlayIds.join(', ') + ']';
+        }
+
+        function addNotif() {
+            counter++;
+            const id = 'ntf-' + counter;
+            overlayIds.push(id);
+            window.native.showOverlay(id, 'notification', 0, 0, {
+                title: '通知 #' + counter,
+                body: '第 ' + counter + ' 条通知，可同时显示多条。',
+                duration: 8000
+            });
+            updateLog();
+        }
+
+        function addTip(e) {
+            counter++;
+            const id = 'tip-' + counter;
+            overlayIds.push(id);
+            window.native.showOverlay(id, 'tooltip', e.screenX, e.screenY + 20, {
+                text: '提示 #' + counter + '：空白区域穿透',
+                duration: 5000
+            });
+            updateLog();
+        }
+
+        function addDialog() {
+            counter++;
+            const id = 'dlg-' + counter;
+            overlayIds.push(id);
+            window.native.showOverlay(id, 'dialog', 0, 0, {
+                title: '对话框 #' + counter,
+                content: '这是一个 Overlay 对话框，点击按钮关闭。',
+                buttons: [
+                    { id: 'cancel', label: '取消' },
+                    { id: 'ok', label: '确定' }
+                ]
+            });
+            updateLog();
+        }
+
+        function addClock(e) {
+            counter++;
+            const id = 'clk-' + counter;
+            overlayIds.push(id);
+            window.native.showOverlay(id, 'clock', e.screenX, e.screenY, {
+                hour12: false,
+                showSeconds: true
+            });
+            updateLog();
+        }
+
+        function addExecutor(e) {
+            counter++;
+            const id = 'exe-' + counter;
+            overlayIds.push(id);
+            window.native.showOverlay(id, 'executor', e.screenX, e.screenY, {
+                defaultName: 'main',
+                defaultScript: 'document.title'
+            });
+            updateLog();
+        }
+
+        function removeLast() {
+            if (overlayIds.length === 0) return;
+            const id = overlayIds.pop();
+            window.native.removeOverlay(id);
+            updateLog();
+        }
+
+        window.addEventListener('ipc-message', (e) => {
+            const { from, data } = e.detail;
+            if (from === 'popup') {
+                document.getElementById('popupLog').textContent =
+                    'popup: type=' + data.type + ' id=' + data.id + ' label=' + (data.label || '');
+            }
+            if (from === 'overlay') {
+                const idx = overlayIds.indexOf(data.id);
+                if (idx !== -1) overlayIds.splice(idx, 1);
+                updateLog();
+                const btnInfo = data.buttonId ? ' buttonId=' + data.buttonId : '';
+                document.getElementById('overlayLog').textContent =
+                    'overlay: type=' + data.type + ' id=' + data.id + ' action=' + data.action + btnInfo;
+            }
+        });
+    </script>
+</body>
+
+</html>

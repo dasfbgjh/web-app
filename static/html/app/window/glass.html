@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glass Style</title>
+    <style>
+        :root {
+            --bg: #0c0c14;
+            --surface: rgba(20, 20, 35, 0.6);
+            --glass: rgba(255, 255, 255, 0.04);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-hover: rgba(255, 255, 255, 0.08);
+            --overlay: rgba(30, 30, 50, 0.5);
+            --border: rgba(255, 255, 255, 0.06);
+            --text: #e8e8f0;
+            --text-secondary: #8888aa;
+            --accent: #a78bfa;
+            --accent-glow: rgba(167, 139, 250, 0.3);
+            --close-hover: #ef4444;
+            --window-border: 1px;
+        }
+
+        [data-theme="light"] {
+            --bg: #f0f0f8;
+            --surface: rgba(255, 255, 255, 0.6);
+            --glass: rgba(255, 255, 255, 0.5);
+            --glass-border: rgba(0, 0, 0, 0.06);
+            --glass-hover: rgba(255, 255, 255, 0.7);
+            --overlay: rgba(240, 240, 250, 0.5);
+            --border: rgba(0, 0, 0, 0.05);
+            --text: #1a1a2e;
+            --text-secondary: #6b6b8a;
+            --accent: #7c3aed;
+            --accent-glow: rgba(124, 58, 237, 0.2);
+            --close-hover: #dc2626;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: transparent;
+            overflow: hidden;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        .window {
+            width: calc(100% - var(--window-border));
+            height: calc(100% - var(--window-border));
+            background-color: var(--bg);
+            border-radius: 16px;
+            border: var(--window-border) solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            color: var(--text);
+            user-select: none;
+            position: relative;
+        }
+
+        .bg-orbs {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+        }
+
+        .orb-1 {
+            width: 300px;
+            height: 300px;
+            background: #7c3aed;
+            top: -80px;
+            right: -60px;
+            animation: orbF1 12s ease-in-out infinite;
+        }
+
+        .orb-2 {
+            width: 250px;
+            height: 250px;
+            background: #06b6d4;
+            bottom: -60px;
+            left: -40px;
+            animation: orbF2 15s ease-in-out infinite;
+        }
+
+        .orb-3 {
+            width: 200px;
+            height: 200px;
+            background: #f59e0b;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: orbF3 10s ease-in-out infinite;
+            opacity: 0.2;
+        }
+
+        @keyframes orbF1 {
+
+            0%,
+            100% {
+                transform: translate(0, 0)
+            }
+
+            50% {
+                transform: translate(-40px, 30px)
+            }
+        }
+
+        @keyframes orbF2 {
+
+            0%,
+            100% {
+                transform: translate(0, 0)
+            }
+
+            50% {
+                transform: translate(30px, -40px)
+            }
+        }
+
+        @keyframes orbF3 {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1)
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.3)
+            }
+        }
+
+        [data-theme="light"] .orb {
+            opacity: 0.15;
+        }
+
+        .titlebar {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
+            background: var(--surface);
+            backdrop-filter: blur(40px) saturate(180%);
+            border-radius: 16px 16px 0 0;
+            border-bottom: 1px solid var(--glass-border);
+            flex-shrink: 0;
+            z-index: 1;
+        }
+
+        .titlebar-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding-left: 4px;
+        }
+
+        .titlebar-buttons {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .titlebar-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: var(--glass);
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .titlebar-btn:hover {
+            background: var(--glass-hover);
+            color: var(--text);
+        }
+
+        .titlebar-btn.close:hover {
+            background: var(--close-hover);
+            color: #fff;
+        }
+
+        .titlebar-btn svg {
+            width: 11px;
+            height: 11px;
+            fill: currentColor;
+        }
+
+        .theme-toggle {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: var(--glass);
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--glass-hover);
+            color: var(--text);
+        }
+
+        .placeholder {
+            flex: 1;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin: 0px 2px 2px 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="window">
+        <div class="bg-orbs">
+            <div class="orb orb-1"></div>
+            <div class="orb orb-2"></div>
+            <div class="orb orb-3"></div>
+        </div>
+
+        <div class="titlebar">
+            <span class="titlebar-title">✦ Glass Style</span>
+            <div class="titlebar-buttons">
+                <button class="theme-toggle" title="切换主题">🌙</button>
+                <button class="titlebar-btn minimize" title="最小化">
+                    <svg viewBox="0 0 11 11">
+                        <rect y="4.5" width="11" height="1.2" rx="0.6" />
+                    </svg>
+                </button>
+                <button class="titlebar-btn maximize" title="最大化">
+                    <svg viewBox="0 0 11 11">
+                        <rect x="1" y="1" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"
+                            rx="1" />
+                    </svg>
+                </button>
+                <button class="titlebar-btn close" title="关闭">
+                    <svg viewBox="0 0 11 11">
+                        <path d="M1.5 1.5L9.5 9.5M9.5 1.5L1.5 9.5" stroke="currentColor" stroke-width="1.2"
+                            fill="none" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="placeholder">Content Placeholder</div>
+    </div>
+
+    <script src="window.js"></script>
+</body>
+
+</html>

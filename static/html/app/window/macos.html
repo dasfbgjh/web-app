@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>macOS Style</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --surface: rgba(24, 24, 37, 0.75);
+            --overlay: #313244;
+            --border: #45475a;
+            --text: #cdd6f4;
+            --text-secondary: #a6adc8;
+            --accent: #89b4fa;
+            --close: #f38ba8;
+            --minimize: #f9e2af;
+            --zoom: #a6e3a1;
+            --window-border: 1px;
+        }
+
+        [data-theme="light"] {
+            --bg: #eff1f5;
+            --surface: rgba(230, 233, 239, 0.75);
+            --overlay: #ccd0da;
+            --border: #bcc0cc;
+            --text: #4c4f69;
+            --text-secondary: #6c6f85;
+            --accent: #1e66f5;
+            --close: #d20f39;
+            --minimize: #df8e1d;
+            --zoom: #40a02b;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: transparent;
+            overflow: hidden;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        .window {
+            width: calc(100% - var(--window-border));
+            height: calc(100% - var(--window-border));
+            background-color: var(--bg);
+            border-radius: 8px;
+            border: var(--window-border) solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+            color: var(--text);
+            user-select: none;
+        }
+
+        .titlebar {
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 14px;
+            background: var(--surface);
+            backdrop-filter: blur(30px) saturate(150%);
+            border-radius: 10px 10px 0 0;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .traffic-lights {
+            position: absolute;
+            left: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .traffic-light {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: filter 0.15s;
+        }
+
+        .traffic-light svg {
+            width: 8px;
+            height: 8px;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .traffic-lights:hover .traffic-light svg {
+            opacity: 1;
+        }
+
+        .traffic-light.close {
+            background: var(--close);
+        }
+
+        .traffic-light.minimize {
+            background: var(--minimize);
+        }
+
+        .traffic-light.zoom {
+            background: var(--zoom);
+        }
+
+        .traffic-light:hover {
+            filter: brightness(1.2);
+        }
+
+        .titlebar-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .titlebar-right {
+            position: absolute;
+            right: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .theme-toggle {
+            width: 26px;
+            height: 26px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: background 0.15s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--overlay);
+        }
+
+        .placeholder {
+            flex: 1;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin: 0px 2px 2px 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="window">
+        <div class="titlebar">
+            <div class="traffic-lights">
+                <button class="traffic-light close" title="关闭">
+                    <svg viewBox="0 0 8 8">
+                        <path d="M1.5 1.5L6.5 6.5M6.5 1.5L1.5 6.5" stroke="#4c4f69" stroke-width="1.2" fill="none" />
+                    </svg>
+                </button>
+                <button class="traffic-light minimize" title="最小化">
+                    <svg viewBox="0 0 8 8">
+                        <line x1="1.5" y1="4" x2="6.5" y2="4" stroke="#4c4f69" stroke-width="1.2" />
+                    </svg>
+                </button>
+                <button class="traffic-light zoom" title="最大化">
+                    <svg viewBox="0 0 8 8">
+                        <rect x="1" y="1" width="6" height="6" fill="none" stroke="#4c4f69" stroke-width="1.1"
+                            rx="0.5" />
+                    </svg>
+                </button>
+            </div>
+            <span class="titlebar-title">macOS Style</span>
+            <div class="titlebar-right">
+                <button class="theme-toggle" title="切换主题">🌙</button>
+            </div>
+        </div>
+
+        <div class="placeholder">Content Placeholder</div>
+    </div>
+
+    <script src="window.js"></script>
+</body>
+
+</html>

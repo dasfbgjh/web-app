@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Popup Host</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            background: transparent;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            font-size: 13px;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="overlay" id="overlay"></div>
+    <div id="container"></div>
+
+    <script>
+        var PopupHost = {
+            overlay: document.getElementById('overlay'),
+            container: document.getElementById('container'),
+            types: new Map(),
+            loadedTypes: new Set(),
+            pendingTypes: new Map(),
+            currentType: null,
+
+            /**
+             * 注册弹窗类型
+             * @param {string} type - 类型名，如 "context-menu"、"tooltip"
+             * @param {Object} handler - 处理器对象
+             * @param {Function} handler.show - 显示弹窗函数 (x, y, params)
+             * @param {Function} handler.hide - 隐藏弹窗函数
+             */
+            register: function (type, handler) {
+                this.types.set(type, handler);
+            },
+
+            /**
+             * 显示全屏透明覆盖层，用于拦截空白处点击
+             */
+            showOverlay: function () {
+                this.overlay.style.display = 'block';
+            },
+
+            /**
+             * 隐藏所有弹窗和覆盖层，重置 currentType
+             */
+            hideAll: function () {
+                this.types.forEach(function (handler) {
+                    handler.hide();
+                });
+                this.overlay.style.display = 'none';
+                this.currentType = null;
+            },
+
+            /**
+             * 将元素定位到指定坐标，自动修正越界
+             * @param {HTMLElement} el - 目标元素
+             * @param {number} x - CSS 像素 X 坐标
+             * @param {number} y - CSS 像素 Y 坐标
+             */
+            positionAt: function (el, x, y) {
+                requestAnimationFrame(function () {
+                    var rect = el.getBoundingClientRect();
+                    var vw = window.innerWidth;
+                    var vh = window.innerHeight;
+                    if (x + rect.width > vw) x = vw - rect.width;
+                    if (y + rect.height > vh) y = vh - rect.height;
+                    if (x < 0) x = 0;
+                    if (y < 0) y = 0;
+                    el.style.left = x + 'px';
+                    el.style.top = y + 'px';
+                });
+            },
+
+            /**
+             * 根据类型动态加载 CSS 和 JS 文件
+             * @param {string} type - 弹窗类型，对应子目录名
+             * @param {Function} callback - 资源加载完毕后的回调
+             */
+            loadType: function (type, callback) {
+                if (this.loadedTypes.has(type)) {
+                    if (callback) callback();
+                    return;
+                }
+
+                if (this.pendingTypes.has(type)) {
+                    this.pendingTypes.get(type).push(callback);
+                    return;
+                }
+
+                this.pendingTypes.set(type, [callback]);
+
+                var self = this;
+                var basePath = type + '/';
+                var cssLoaded = false;
+                var jsLoaded = false;
+
+                function checkDone() {
+                    if (cssLoaded && jsLoaded) {
+                        self.loadedTypes.add(type);
+                        var pending = self.pendingTypes.get(type);
+                        self.pendingTypes.delete(type);
+                        pending.forEach(function (cb) {
+                            if (cb) cb();
+                        });
+                    }
+                }
+
+                var link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = basePath + 'style.css';
+                link.onload = function () { cssLoaded = true; checkDone(); };
+                link.onerror = function () { cssLoaded = true; checkDone(); };
+                document.head.appendChild(link);
+
+                var script = document.createElement('script');
+                script.src = basePath + 'script.js';
+                script.onload = function () { jsLoaded = true; checkDone(); };
+                script.onerror = function () { jsLoaded = true; checkDone(); };
+                document.body.appendChild(script);
+            }
+        };
+
+        /**
+         * 显示弹窗（C++ 端调用入口）
+         * @param {string} type - 弹窗类型
+         * @param {number} x - 参考 X 屏幕坐标
+         * @param {number} y - 参考 Y 屏幕坐标
+         * @param {Object} params - 弹窗参数，各类型不同
+         */
+        window.showPopup = function (type, x, y, params) {
+            PopupHost.hideAll();
+            PopupHost.loadType(type, function () {
+                var handler = PopupHost.types.get(type);
+                if (handler) {
+                    PopupHost.currentType = type;
+                    handler.show(x, y, params);
+                } else {
+                    console.warn('Unknown popup type:', type);
+                }
+            });
+        };
+
+        PopupHost.overlay.addEventListener('mousedown', function () {
+            PopupHost.hideAll();
+            window.native.hidePopup({ type: PopupHost.currentType, id: null });
+        });
+
+        PopupHost.overlay.addEventListener('contextmenu', function (e) {
+            e.preventDefault();
+            PopupHost.hideAll();
+            window.native.hidePopup({ type: PopupHost.currentType, id: null });
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                PopupHost.hideAll();
+                window.native.hidePopup({ type: PopupHost.currentType, id: null });
+            }
+        });
+    </script>
+</body>
+
+</html>

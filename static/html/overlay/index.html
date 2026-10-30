@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Overlay Host</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            background: transparent;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            font-size: 13px;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+
+    <script>
+        var OverlayHost = {
+            container: document.getElementById('container'),
+            blocks: new Map(),
+            blockTypes: new Map(),
+            timers: new Map(),
+            types: new Map(),
+            loadedTypes: new Set(),
+            pendingTypes: new Map(),
+
+            /**
+             * 注册内容块类型
+             * @param {string} type - 类型名，如 "tooltip"、"notification"、"dialog"
+             * @param {Object} handler - 处理器对象
+             * @param {Function} handler.create - 创建内容块函数 (id, x, y, sourceWindow, params)
+             * @param {Function} [handler.onRemove] - 内容块被移除时的回调 (id)
+             * @param {boolean} [handler.isInteractive=false] - 内容块是否可交互（可交互的加入裁剪区域）
+             */
+            register: function (type, handler) {
+                this.types.set(type, handler);
+            },
+
+            /**
+             * 内部移除内容块：清除定时器、移除 DOM、通知各类型的 onRemove
+             * @param {string} id - 内容块唯一标识
+             */
+            removeBlockInternal: function (id) {
+                if (this.timers.has(id)) {
+                    clearTimeout(this.timers.get(id));
+                    this.timers.delete(id);
+                }
+                var el = this.blocks.get(id);
+                if (el) {
+                    el.remove();
+                    this.blocks.delete(id);
+                }
+                this.blockTypes.delete(id);
+                this.types.forEach(function (handler) {
+                    if (handler.onRemove) handler.onRemove(id);
+                });
+            },
+
+            /**
+             * 计算所有可见内容块的物理像素区域，调用 windowSetRgn 裁剪窗口
+             * 无内容块时调用 overlayBlocksEmpty 通知 C++ 端隐藏窗口
+             */
+            updateWindowRgn: function () {
+                var self = this;
+                var dpr = window.devicePixelRatio || 1;
+                var rgnList = [];
+                var hasInteractive = false;
+                this.blocks.forEach(function (el, id) {
+                    var blockType = self.blockTypes.get(id);
+                    var handler = blockType ? self.types.get(blockType) : null;
+                    if (handler && handler.isInteractive) hasInteractive = true;
+                    var rect = el.getBoundingClientRect();
+                    if (rect.width === 0 || rect.height === 0) return;
+                    var borderRadius = parseInt(getComputedStyle(el).borderRadius) || 0;
+                    if (borderRadius > 0) {
+                        rgnList.push({
+                            type: 'roundRect',
+                            x: Math.round(rect.left * dpr),
+                            y: Math.round(rect.top * dpr),
+                            w: Math.round(rect.width * dpr),
+                            h: Math.round(rect.height * dpr),
+                            rx: Math.round(borderRadius * dpr),
+                            ry: Math.round(borderRadius * dpr)
+                        });
+                    } else {
+                        rgnList.push({
+                            type: 'rect',
+                            x: Math.round(rect.left * dpr),
+                            y: Math.round(rect.top * dpr),
+                            w: Math.round(rect.width * dpr),
+                            h: Math.round(rect.height * dpr)
+                        });
+                    }
+                });
+                if (this.blocks.size === 0) {
+                    window.native.windowSetRgn([], true);
+                    window.native.overlayBlocksEmpty();
+                    return;
+                }
+                window.native.windowSetRgn(rgnList, !hasInteractive);
+            },
+
+            /**
+             * 延迟两帧后更新窗口裁剪区域，确保布局计算完成
+             */
+            scheduleRgnUpdate: function () {
+                var self = this;
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        self.updateWindowRgn();
+                    });
+                });
+            },
+
+            /**
+             * 将元素定位到指定坐标，自动修正越界，定位后更新裁剪区域
+             * @param {HTMLElement} el - 目标元素
+             * @param {number} x - CSS 像素 X 坐标
+             * @param {number} y - CSS 像素 Y 坐标
+             */
+            positionAt: function (el, x, y) {
+                var self = this;
+                requestAnimationFrame(function () {
+                    var rect = el.getBoundingClientRect();
+                    var vw = window.innerWidth;
+                    var vh = window.innerHeight;
+                    if (x + rect.width > vw) x = vw - rect.width;
+                    if (y + rect.height > vh) y = vh - rect.height;
+                    if (x < 0) x = 0;
+                    if (y < 0) y = 0;
+                    el.style.left = x + 'px';
+                    el.style.top = y + 'px';
+                    self.scheduleRgnUpdate();
+                });
+            },
+
+            loadType: function (type, callback) {
+                if (this.loadedTypes.has(type)) {
+                    if (callback) callback();
+                    return;
+                }
+
+                if (this.pendingTypes.has(type)) {
+                    this.pendingTypes.get(type).push(callback);
+                    return;
+                }
+
+                this.pendingTypes.set(type, [callback]);
+
+                var self = this;
+                var basePath = type + '/';
+                var cssLoaded = false;
+                var jsLoaded = false;
+
+                function checkDone() {
+                    if (cssLoaded && jsLoaded) {
+                        self.loadedTypes.add(type);
+                        var pending = self.pendingTypes.get(type);
+                        self.pendingTypes.delete(type);
+                        pending.forEach(function (cb) {
+                            if (cb) cb();
+                        });
+                    }
+                }
+
+                var link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = basePath + 'style.css';
+                link.onload = function () { cssLoaded = true; checkDone(); };
+                link.onerror = function () { cssLoaded = true; checkDone(); };
+                document.head.appendChild(link);
+
+                var script = document.createElement('script');
+                script.src = basePath + 'script.js';
+                script.onload = function () { jsLoaded = true; checkDone(); };
+                script.onerror = function () { jsLoaded = true; checkDone(); };
+                document.body.appendChild(script);
+            }
+        };
+
+        /**
+         * 添加内容块（C++ 端调用入口）
+         * 同 id 会先移除已有内容，再交由对应类型的 handler.create 创建
+         * @param {string} id - 内容块唯一标识
+         * @param {string} type - 内容块类型
+         * @param {number} x - 参考 X 屏幕坐标
+         * @param {number} y - 参考 Y 屏幕坐标
+         * @param {string} sourceWindow - 来源 WebView 名称，用于 IPC 回传
+         * @param {Object} params - 内容块参数，各类型不同
+         */
+        window.addBlock = function (id, type, x, y, sourceWindow, params) {
+            OverlayHost.removeBlockInternal(id);
+            OverlayHost.loadType(type, function () {
+                var handler = OverlayHost.types.get(type);
+                if (handler) {
+                    handler.create(id, x, y, sourceWindow, params);
+                    OverlayHost.blockTypes.set(id, type);
+                    OverlayHost.scheduleRgnUpdate();
+                } else {
+                    console.warn('Unknown overlay block type:', type);
+                }
+            });
+        };
+
+        /**
+         * 移除指定内容块（C++ 端调用入口）
+         * @param {string} id - 内容块唯一标识
+         */
+        window.removeBlock = function (id) {
+            OverlayHost.removeBlockInternal(id);
+            OverlayHost.scheduleRgnUpdate();
+        };
+
+        /**
+         * 移除所有内容块（C++ 端调用入口）
+         */
+        window.clearBlocks = function () {
+            var ids = Array.from(OverlayHost.blocks.keys());
+            for (var i = 0; i < ids.length; i++) {
+                OverlayHost.removeBlockInternal(ids[i]);
+            }
+            OverlayHost.scheduleRgnUpdate();
+        };
+
+    </script>
+</body>
+
+</html>

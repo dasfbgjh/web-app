@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Style</title>
+    <style>
+        :root {
+            --bg: #0f0f0f;
+            --surface: transparent;
+            --overlay: #1a1a1a;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text-secondary: #707070;
+            --accent: #7c7cff;
+            --close-hover: #ff4444;
+            --window-border: 1px;
+        }
+
+        [data-theme="light"] {
+            --bg: #fafafa;
+            --surface: transparent;
+            --overlay: #f0f0f0;
+            --border: #e0e0e0;
+            --text: #1a1a1a;
+            --text-secondary: #999999;
+            --accent: #5b5bff;
+            --close-hover: #d42a2a;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: transparent;
+            overflow: hidden;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        .window {
+            width: calc(100% - var(--window-border));
+            height: calc(100% - var(--window-border));
+            background-color: var(--bg);
+            border-radius: 8px;
+            border: var(--window-border) solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            color: var(--text);
+            user-select: none;
+        }
+
+        .titlebar {
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 6px 0 12px;
+            background: var(--surface);
+            flex-shrink: 0;
+        }
+
+        .titlebar-title {
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .titlebar-buttons {
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .titlebar-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .titlebar-btn:hover {
+            color: var(--text);
+            background: var(--overlay);
+        }
+
+        .titlebar-btn.close:hover {
+            color: #fff;
+            background: var(--close-hover);
+        }
+
+        .titlebar-btn svg {
+            width: 10px;
+            height: 10px;
+            fill: currentColor;
+        }
+
+        .theme-toggle {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .theme-toggle:hover {
+            color: var(--text);
+            background: var(--overlay);
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+
+        .placeholder {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 12px;
+            letter-spacing: 0.3px;
+            margin: 0px 2px 2px 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="window">
+        <div class="titlebar">
+            <span class="titlebar-title">Minimal</span>
+            <div class="titlebar-buttons">
+                <button class="theme-toggle" title="切换主题">🌙</button>
+                <button class="titlebar-btn minimize" title="最小化">
+                    <svg viewBox="0 0 10 10">
+                        <rect y="4.5" width="10" height="1" />
+                    </svg>
+                </button>
+                <button class="titlebar-btn maximize" title="最大化">
+                    <svg viewBox="0 0 10 10">
+                        <rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1" />
+                    </svg>
+                </button>
+                <button class="titlebar-btn close" title="关闭">
+                    <svg viewBox="0 0 10 10">
+                        <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1" fill="none" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="divider"></div>
+
+        <div class="placeholder">Content Placeholder</div>
+    </div>
+
+    <script src="window.js"></script>
+</body>
+
+</html>

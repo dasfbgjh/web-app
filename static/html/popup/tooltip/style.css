@@ -1,0 +1,15 @@
+.tooltip {
+    position: fixed;
+    display: none;
+    background: rgba(40, 40, 55, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 6px 12px;
+    max-width: 300px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    color: #cdd6f4;
+    font-size: 12px;
+    line-height: 1.5;
+    word-break: break-word;
+}

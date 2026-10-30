@@ -1,0 +1,205 @@
+.block-executor {
+    position: absolute;
+    pointer-events: auto;
+    background: rgba(40, 40, 55, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    color: #cdd6f4;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 280px;
+    max-width: 400px;
+}
+
+.block-executor .exe-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: #89b4fa;
+}
+
+.block-executor .exe-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.block-executor .exe-row label {
+    font-size: 11px;
+    color: #a6adc8;
+    white-space: nowrap;
+    min-width: 36px;
+}
+
+.block-executor input[type="text"] {
+    flex: 1;
+    background: #1e1e2e;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #cdd6f4;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    outline: none;
+}
+
+.block-executor input[type="text"]:focus {
+    border-color: rgba(137, 180, 250, 0.4);
+}
+
+.block-executor textarea {
+    background: #1e1e2e;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: #cdd6f4;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    outline: none;
+    resize: vertical;
+    min-height: 60px;
+    max-height: 200px;
+    width: 100%;
+}
+
+.block-executor textarea:focus {
+    border-color: rgba(137, 180, 250, 0.4);
+}
+
+.block-executor .exe-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.block-executor .exe-btn {
+    padding: 3px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.block-executor .exe-btn-run {
+    background: #89b4fa;
+    color: #1e1e2e;
+}
+
+.block-executor .exe-btn-run:hover {
+    background: #b4d0fb;
+}
+
+.block-executor .exe-btn-close {
+    background: #45475a;
+    color: #cdd6f4;
+}
+
+.block-executor .exe-btn-devtools {
+    background: #45475a;
+    color: #cdd6f4;
+}
+
+.block-executor .exe-btn-close:hover {
+    background: #585b70;
+}
+
+.block-executor .exe-btn-devtools:hover {
+    background: #585b70;
+}
+
+.block-executor .exe-result {
+    background: #1e1e2e;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 11px;
+    color: #a6e3a1;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 120px;
+    overflow-y: auto;
+    min-height: 20px;
+}
+
+.block-executor .exe-result.exe-error {
+    color: #f38ba8;
+}
+
+.block-executor .exe-status {
+    font-size: 10px;
+    color: #6c7086;
+}
+
+.block-executor .block-drag-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 18px;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+
+.block-executor .block-drag-handle::after {
+    content: '\00B7\00B7\00B7';
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.15);
+    letter-spacing: 3px;
+    transition: color 0.15s;
+}
+
+.block-executor .block-drag-handle:hover::after {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.block-executor .block-drag-handle:active {
+    cursor: grabbing;
+}
+
+.block-executor .block-resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    z-index: 1;
+}
+
+.block-executor .block-resize-handle::before,
+.block-executor .block-resize-handle::after {
+    content: '';
+    position: absolute;
+    background: rgba(255, 255, 255, 0.15);
+    transition: background 0.15s;
+}
+
+.block-executor .block-resize-handle::before {
+    bottom: 3px;
+    right: 3px;
+    width: 7px;
+    height: 1px;
+    transform: rotate(-45deg);
+    transform-origin: bottom right;
+}
+
+.block-executor .block-resize-handle::after {
+    bottom: 5px;
+    right: 5px;
+    width: 4px;
+    height: 1px;
+    transform: rotate(-45deg);
+    transform-origin: bottom right;
+}
+
+.block-executor .block-resize-handle:hover::before,
+.block-executor .block-resize-handle:hover::after {
+    background: rgba(255, 255, 255, 0.35);
+}
