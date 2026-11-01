@@ -70,6 +70,11 @@ private:
 
         m_server.dispatch( req, resp );
 
+        if ( resp.isStreaming() ) {
+            startStream( resp, req.version );
+            return;
+        }
+
         m_serializer.reset();
         m_response.emplace();
 
@@ -102,6 +107,62 @@ private:
             return;
         }
         doRead();
+    }
+
+    void startStream( const Response &resp, int version ) {
+        m_bodyPuller = resp.streamBody;
+
+        m_streamResponse.emplace();
+        beast::http::response<beast::http::empty_body> &resMsg = *m_streamResponse;
+        resMsg.version( version );
+        resMsg.result( resp.statusCode );
+        resMsg.reason( resp.reason );
+
+        for ( const auto &[key, value] : resp.headers ) {
+            resMsg.set( key, value );
+        }
+
+        resMsg.set( beast::http::field::server, "HttpServer/1.0" );
+        resMsg.set( beast::http::field::content_length, std::to_string( resp.contentLength ) );
+        if ( resp.headers.find( "Content-Type" ) == resp.headers.end() ) {
+            resMsg.set( beast::http::field::content_type, "text/plain; charset=utf-8" );
+        }
+
+        m_streamSerializer.emplace( resMsg );
+
+        beast::http::async_write_header(
+            m_stream, *m_streamSerializer,
+            beast::bind_front_handler( &Connection::onStreamHeader, shared_from_this() ) );
+    }
+
+    void onStreamHeader( const error_code &ec, std::size_t ) {
+        if ( ec ) {
+            return;
+        }
+        writeNextChunk();
+    }
+
+    void writeNextChunk() {
+        m_chunk.clear();
+        if ( !m_bodyPuller || !m_bodyPuller( m_chunk, STREAM_CHUNK_SIZE ) || m_chunk.empty() ) {
+            m_bodyPuller = nullptr;
+            m_chunk.clear();
+            m_streamSerializer.reset();
+            m_streamResponse.reset();
+            doRead();
+            return;
+        }
+
+        asio::async_write(
+            m_stream, asio::buffer( m_chunk ),
+            beast::bind_front_handler( &Connection::onStreamChunk, shared_from_this() ) );
+    }
+
+    void onStreamChunk( const error_code &ec, std::size_t ) {
+        if ( ec ) {
+            return;
+        }
+        writeNextChunk();
     }
 
     void doClose() {
@@ -151,7 +212,13 @@ private:
     std::optional<beast::http::request_parser<beast::http::string_body>> m_parser;
     std::optional<beast::http::response<beast::http::string_body>> m_response;
     std::optional<beast::http::response_serializer<beast::http::string_body>> m_serializer;
+    std::optional<beast::http::response<beast::http::empty_body>> m_streamResponse;
+    std::optional<beast::http::response_serializer<beast::http::empty_body>> m_streamSerializer;
+    BodyPuller m_bodyPuller;
+    std::string m_chunk;
     HttpServer &m_server;
+
+    static constexpr std::size_t STREAM_CHUNK_SIZE = 256u << 10;
 };
 
 HttpServer::HttpServer()
@@ -314,7 +381,7 @@ void HttpServer::dispatch( const Request &req, Response &resp ) {
     if ( !m_staticDir.empty() ) {
         std::string filePath = matchStaticFile( req.target );
         if ( !filePath.empty() ) {
-            std::ifstream file( filePath, std::ios::binary );
+            std::ifstream file( std::filesystem::u8path( filePath ), std::ios::binary );
             if ( file.is_open() ) {
                 std::ostringstream ss;
                 ss << file.rdbuf();
@@ -327,7 +394,7 @@ void HttpServer::dispatch( const Request &req, Response &resp ) {
 
     resp.statusCode = 404;
     resp.reason = "Not Found";
-    resp.setText( "404 Not Found" );
+    resp.setText( "页面不存在" );
 }
 
 std::string HttpServer::matchStaticFile( const std::string &target ) const {
@@ -343,9 +410,9 @@ std::string HttpServer::matchStaticFile( const std::string &target ) const {
     if ( safePath.find( ".." ) != std::string::npos )
         return {};
 
-    fs::path fullPath = fs::path( m_staticDir ) / safePath;
+    fs::path fullPath = fs::path( m_staticDir ) / fs::u8path( safePath );
     if ( fs::exists( fullPath ) && fs::is_regular_file( fullPath ) ) {
-        return fullPath.string();
+        return fullPath.u8string();
     }
 
     return {};

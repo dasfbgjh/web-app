@@ -21,7 +21,4 @@ CMakeUserPresets.json
 
 /build
 /appInfo/output
-/bin/test*
-/bin/webview*
-
 /bin

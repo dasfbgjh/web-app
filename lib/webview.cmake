@@ -56,6 +56,7 @@ if(ADD_HTTP_SERVER)
         mswsock
     )
 
+    set(OPENSSL_USE_STATIC_LIBS ON)
     find_package(OpenSSL REQUIRED)
 
     if(OPENSSL_FOUND)

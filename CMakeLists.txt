@@ -14,6 +14,7 @@ find_package(Boost REQUIRED CONFIG COMPONENTS
     filesystem
     regex
     json
+    beast
 )
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/appInfo/AppInfo.cmake)
