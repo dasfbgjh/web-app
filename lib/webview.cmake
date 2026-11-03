@@ -45,7 +45,28 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     )
 endif()
 
-if(ADD_HTTP_SERVER)
+option(ENABLE_JS_BINDING "Enable JS binding" ON)
+
+if(ENABLE_JS_BINDING)
+    list(APPEND WEBVIEW_SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/JSBindings.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/BindingCore.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/AppBinding.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/ConsoleBinding.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/TimerBinding.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/WidgetBinding.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/WebViewBinding.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/WebviewWidgetBinding.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/JSBinding/WebviewWindowBinding.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../3rdparty/QuickJS/cpp/QuickJS.cpp
+    )
+    list(APPEND WEBVIEW_LIBRARIES
+        quickjs
+    )
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/QuickJS)
+endif()
+
+if(ENABLE_HTTP_SERVER)
     list(APPEND WEBVIEW_SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/http/HttpClient.cpp
         ${CMAKE_CURRENT_LIST_DIR}/http/HttpServer.cpp

@@ -254,6 +254,66 @@ private:
     Callback m_cb;
 };
 
+class FrameCreatedHandler
+    : public ComHandlerBase<
+          ICoreWebView2FrameCreatedEventHandler,
+          IID_ICoreWebView2FrameCreatedEventHandler> {
+public:
+    using Callback = std::function<void( ICoreWebView2 *, ICoreWebView2FrameCreatedEventArgs * )>;
+    FrameCreatedHandler( Callback cb ) : m_cb( std::move( cb ) ) {
+    }
+
+    HRESULT STDMETHODCALLTYPE Invoke( ICoreWebView2 *sender, ICoreWebView2FrameCreatedEventArgs *args ) override {
+        if ( m_cb )
+            m_cb( sender, args );
+        return S_OK;
+    }
+
+private:
+    Callback m_cb;
+};
+
+class FrameMsgReceivedHandler
+    : public ComHandlerBase<
+          ICoreWebView2FrameWebMessageReceivedEventHandler,
+          IID_ICoreWebView2FrameWebMessageReceivedEventHandler> {
+public:
+    using Callback = std::function<void( ICoreWebView2Frame *, ICoreWebView2WebMessageReceivedEventArgs * )>;
+    FrameMsgReceivedHandler( Callback cb ) : m_cb( std::move( cb ) ) {
+    }
+
+    HRESULT STDMETHODCALLTYPE Invoke( ICoreWebView2Frame *sender, ICoreWebView2WebMessageReceivedEventArgs *args ) override {
+        if ( m_cb )
+            m_cb( sender, args );
+        return S_OK;
+    }
+
+private:
+    Callback m_cb;
+};
+
+class FrameDestroyedHandler
+    : public ComHandlerBase<
+          ICoreWebView2FrameDestroyedEventHandler,
+          IID_ICoreWebView2FrameDestroyedEventHandler> {
+public:
+    using Callback = std::function<void( ICoreWebView2Frame *, IUnknown * )>;
+    FrameDestroyedHandler( Callback cb ) : m_cb( std::move( cb ) ) {
+    }
+
+    HRESULT STDMETHODCALLTYPE Invoke( ICoreWebView2Frame *sender, IUnknown *args ) override {
+        // 回调中可能释放对 handler 的最后一个引用，先自持一份避免 Invoke 执行期间被销毁
+        AddRef();
+        if ( m_cb )
+            m_cb( sender, args );
+        Release();
+        return S_OK;
+    }
+
+private:
+    Callback m_cb;
+};
+
 class DocTitleChangedHandler
     : public ComHandlerBase<
           ICoreWebView2DocumentTitleChangedEventHandler,
@@ -736,6 +796,26 @@ void WebView::close() {
             }
         }
 
+        if ( m_frameCreatedToken.value != 0 ) {
+            ICoreWebView2_4 *webview4 = nullptr;
+            if ( SUCCEEDED( m_webview->QueryInterface( IID_ICoreWebView2_4, (void **)&webview4 ) ) ) {
+                webview4->remove_FrameCreated( m_frameCreatedToken );
+                webview4->Release();
+            }
+            m_frameCreatedToken = {};
+        }
+
+        {
+            std::vector<ICoreWebView2Frame2 *> frames;
+            {
+                std::lock_guard<std::mutex> lock( m_framesMutex );
+                for ( auto &entry : m_frames )
+                    frames.push_back( entry.first );
+            }
+            for ( auto *frame : frames )
+                unregisterFrame( frame );
+        }
+
         m_webview->Release();
         m_webview = nullptr;
     }
@@ -854,6 +934,22 @@ void WebView::postWebMessage( const json::value &json ) {
         std::wstring wjson = utils::strToWiden( str );
         m_webview->PostWebMessageAsJson( wjson.c_str() );
     }
+}
+
+void WebView::postWebMessageToAllFrames( const json::value &json ) {
+    postWebMessage( json );
+
+    std::string str = json::serialize( json );
+    std::wstring wjson = utils::strToWiden( str );
+
+    std::vector<ICoreWebView2Frame2 *> frames;
+    {
+        std::lock_guard<std::mutex> lock( m_framesMutex );
+        for ( auto &entry : m_frames )
+            frames.push_back( entry.first );
+    }
+    for ( auto *frame : frames )
+        frame->PostWebMessageAsJson( wjson.c_str() );
 }
 
 void WebView::resize( int x, int y, int width, int height ) {
@@ -1558,7 +1654,101 @@ void WebView::onEnvCompleted( HRESULT hr, ICoreWebView2Environment *env, Created
     env->CreateCoreWebView2Controller( m_parentHwnd, ctrlHandler );
 }
 
-bool WebView::handleBindCall( const json::value &msg ) {
+void WebView::handleRawMessage( const std::string &rawMsg, ICoreWebView2Frame2 *frame ) {
+    try {
+        auto jv = json::parse( rawMsg );
+        LOG_DEBUG << m_name << "消息:" << rawMsg;
+        // 处理 native-rpc 消息
+        if ( handleBindCall( jv, frame ) )
+            return;
+        // 处理跨 WebView IPC 消息
+        if ( handleIpcMessage( jv ) )
+            return;
+        // 处理 console 拦截消息
+        if ( handleConsoleMessage( jv ) )
+            return;
+        // 调用回调
+        if ( m_onWebMessageReceived )
+            m_onWebMessageReceived( jv, this );
+    } catch ( ... ) {
+    }
+}
+
+void WebView::registerFrame( ICoreWebView2Frame2 *frame ) {
+    if ( !frame )
+        return;
+
+    FrameTokens tokens;
+
+    auto msgHandler = new FrameMsgReceivedHandler(
+        [this, frame]( ICoreWebView2Frame *, ICoreWebView2WebMessageReceivedEventArgs *args ) {
+            if ( !args )
+                return;
+            LPWSTR rawMsg = nullptr;
+            args->get_WebMessageAsJson( &rawMsg );
+            handleRawMessage( coMemToStr( rawMsg ), frame );
+        } );
+
+    auto destroyedHandler = new FrameDestroyedHandler(
+        [this, frame]( ICoreWebView2Frame *, IUnknown * ) {
+            // iframe 已销毁，不再调用其方法，仅清理记录并释放引用
+            bool found = false;
+            {
+                std::lock_guard<std::mutex> lock( m_framesMutex );
+                auto it = m_frames.find( frame );
+                if ( it != m_frames.end() ) {
+                    m_frames.erase( it );
+                    found = true;
+                }
+            }
+            if ( found )
+                frame->Release();
+        } );
+
+    // 先 AddRef 再注册，保证 iframe 销毁事件到达前对象有效
+    frame->AddRef();
+
+    HRESULT msgHr = frame->add_WebMessageReceived( msgHandler, &tokens.message );
+    msgHandler->Release();
+    HRESULT destroyedHr = frame->add_Destroyed( destroyedHandler, &tokens.destroyed );
+    destroyedHandler->Release();
+
+    if ( FAILED( msgHr ) || FAILED( destroyedHr ) ) {
+        LOG_WARN << m_name << "iframe 事件注册失败, msgHr: " << (int)msgHr << ", destroyedHr: " << (int)destroyedHr;
+        frame->Release();
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock( m_framesMutex );
+    m_frames[frame] = tokens;
+}
+
+void WebView::unregisterFrame( ICoreWebView2Frame2 *frame ) {
+    FrameTokens tokens;
+    {
+        std::lock_guard<std::mutex> lock( m_framesMutex );
+        auto it = m_frames.find( frame );
+        if ( it == m_frames.end() )
+            return;
+        tokens = it->second;
+        m_frames.erase( it );
+    }
+    if ( tokens.message.value != 0 )
+        frame->remove_WebMessageReceived( tokens.message );
+    if ( tokens.destroyed.value != 0 )
+        frame->remove_Destroyed( tokens.destroyed );
+    frame->Release();
+}
+
+void WebView::postWebMessageToFrame( ICoreWebView2Frame2 *frame, const json::value &json ) {
+    if ( !frame )
+        return;
+    std::string str = json::serialize( json );
+    std::wstring wjson = utils::strToWiden( str );
+    frame->PostWebMessageAsJson( wjson.c_str() );
+}
+
+bool WebView::handleBindCall( const json::value &msg, ICoreWebView2Frame2 *frame ) {
     if ( !msg.is_object() )
         return false;
 
@@ -1615,7 +1805,11 @@ bool WebView::handleBindCall( const json::value &msg ) {
     json::object respObj;
     respObj["type"] = "__native-rpc-response";
     respObj["message"] = rpcResp;
-    postWebMessage( respObj );
+    // 来自 iframe 的请求必须回给该 iframe，顶层文档收不到
+    if ( frame )
+        postWebMessageToFrame( frame, respObj );
+    else
+        postWebMessage( respObj );
     return true;
 }
 
@@ -1635,7 +1829,7 @@ bool WebView::sendIpcMessage( const std::vector<std::string> &to, const json::va
             continue;
         for ( auto &target : to ) {
             if ( inst->m_name == target ) {
-                inst->postWebMessage( fwd );
+                inst->postWebMessageToAllFrames( fwd );
                 return true;
             }
         }
@@ -1680,48 +1874,49 @@ bool WebView::handleConsoleMessage( const json::value &msg ) {
         if ( !msg.is_object() )
             return false;
         auto &obj = msg.as_object();
-        if ( obj.contains( "type" ) && obj.at( "type" ).is_string() &&
-             obj.at( "type" ).as_string() == "__console" ) {
-            auto *messageVal = obj.if_contains( "message" );
-            if ( !messageVal || !messageVal->is_object() )
-                return false;
-            auto &consoleObj = messageVal->as_object();
-            int level = 0;
-            std::string message;
-            if ( consoleObj.contains( "level" ) && consoleObj.at( "level" ).is_int64() )
-                level = static_cast<int>( consoleObj.at( "level" ).as_int64() );
-            if ( consoleObj.contains( "message" ) && consoleObj.at( "message" ).is_string() )
-                message = std::string( consoleObj.at( "message" ).as_string() );
+        auto *typeVal = obj.if_contains( "type" );
+        if ( !typeVal || !typeVal->is_string() || typeVal->as_string() != "__console" )
+            return false;
 
-            if ( m_onConsoleMessage ) {
-                m_onConsoleMessage( level, message, this );
-            } else {
-                switch ( level ) {
-                case 0:
-                    LOG_DEBUG << "JS:" << message;
-                    break;
-                case 1:
-                    LOG_LOG << "JS:" << message;
-                    break;
-                case 2:
-                    LOG_INFO << "JS:" << message;
-                    break;
-                case 3:
-                    LOG_WARN << "JS:" << message;
-                    break;
-                case 4:
-                    LOG_ERROR << "JS:" << message;
-                    break;
-                default:
-                    LOG_DEBUG << "JS:" << level << message;
-                    break;
-                }
+        auto *messageVal = obj.if_contains( "message" );
+        if ( !messageVal || !messageVal->is_object() )
+            return false;
+        auto &consoleObj = messageVal->as_object();
+        int level = 0;
+        std::string message;
+        if ( consoleObj.contains( "level" ) && consoleObj.at( "level" ).is_int64() )
+            level = static_cast<int>( consoleObj.at( "level" ).as_int64() );
+        if ( consoleObj.contains( "message" ) && consoleObj.at( "message" ).is_string() )
+            message = std::string( consoleObj.at( "message" ).as_string() );
+
+        if ( m_onConsoleMessage ) {
+            m_onConsoleMessage( level, message, this );
+        } else {
+            switch ( level ) {
+            case 0:
+                LOG_DEBUG << "JS:" << message;
+                break;
+            case 1:
+                LOG_LOG << "JS:" << message;
+                break;
+            case 2:
+                LOG_INFO << "JS:" << message;
+                break;
+            case 3:
+                LOG_WARN << "JS:" << message;
+                break;
+            case 4:
+                LOG_ERROR << "JS:" << message;
+                break;
+            default:
+                LOG_DEBUG << "JS:" << level << message;
+                break;
             }
         }
+        return true;
     } catch ( ... ) {
         return false;
     }
-    return true;
 }
 
 void WebView::registerEventHandlers() {
@@ -1760,27 +1955,34 @@ void WebView::registerEventHandlers() {
                 return;
             LPWSTR rawMsg = nullptr;
             args->get_WebMessageAsJson( &rawMsg );
-            std::string msg = coMemToStr( rawMsg );
-            try {
-                auto jv = json::parse( msg );
-                LOG_DEBUG << m_name << "消息:" << msg;
-                // 处理 native-rpc 消息
-                if ( handleBindCall( jv ) )
-                    return;
-                // 处理跨 WebView IPC 消息
-                if ( handleIpcMessage( jv ) )
-                    return;
-                // 处理 console 拦截消息
-                if ( handleConsoleMessage( jv ) )
-                    return;
-                // 调用回调
-                if ( m_onWebMessageReceived )
-                    m_onWebMessageReceived( jv, this );
-            } catch ( ... ) {
-            }
+            handleRawMessage( coMemToStr( rawMsg ), nullptr );
         } );
     m_webview->add_WebMessageReceived( msgHandler, &m_webMessageReceivedToken );
     msgHandler->Release();
+
+    ICoreWebView2_4 *webview4 = nullptr;
+    if ( SUCCEEDED( m_webview->QueryInterface( IID_ICoreWebView2_4, (void **)&webview4 ) ) ) {
+        auto frameCreatedHandler = new FrameCreatedHandler(
+            [this]( ICoreWebView2 *, ICoreWebView2FrameCreatedEventArgs *args ) {
+                if ( !args )
+                    return;
+                ICoreWebView2Frame *frame = nullptr;
+                args->get_Frame( &frame );
+                if ( !frame )
+                    return;
+                ICoreWebView2Frame2 *frame2 = nullptr;
+                if ( SUCCEEDED( frame->QueryInterface( IID_ICoreWebView2Frame2, (void **)&frame2 ) ) ) {
+                    registerFrame( frame2 );
+                    frame2->Release();
+                }
+                frame->Release();
+            } );
+        webview4->add_FrameCreated( frameCreatedHandler, &m_frameCreatedToken );
+        frameCreatedHandler->Release();
+        webview4->Release();
+    } else {
+        LOG_WARN << m_name << "当前 WebView2 版本不支持 ICoreWebView2_4，iframe 内的消息无法转发";
+    }
 
     auto titleHandler = new DocTitleChangedHandler(
         [this]( ICoreWebView2 *, IUnknown * ) {

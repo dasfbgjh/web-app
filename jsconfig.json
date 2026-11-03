@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "lib": [
+            "ES2020",
+            "DOM",
+            "DOM.Iterable"
+        ],
+        "types": [],
+        "checkJs": true,
+        "noEmit": true
+    },
+    "include": [
+        "**/*.js",
+        "lib/ts/**/*.d.ts"
+    ],
+    "exclude": [
+        "build",
+        "node_modules",
+        "bin/config"
+    ]
+}

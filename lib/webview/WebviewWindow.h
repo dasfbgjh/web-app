@@ -11,6 +11,20 @@ class WebviewWindow : public Widget {
 public:
     using CreatedCallback = std::function<void( bool success, WebviewWindow *ptr )>;
 
+    /**
+     * @brief 子 WebView 创建前回调
+     * @param config 即将生效的配置，可直接修改
+     * @param subWebview 即将创建的子 WebView 实例
+     */
+    using SubWebviewCreateCallback = std::function<void( WebviewWidget::Config &config, WebviewWidget *subWebview )>;
+
+    /**
+     * @brief 子 WebView 创建完成回调
+     * @param success 是否创建成功
+     * @param subWebview 已创建的子 WebView 实例
+     */
+    using SubWebviewCreateCompleteCallback = std::function<void( bool success, WebviewWidget *subWebview )>;
+
     struct Config {
         Widget::Config window;
         WebView::Config webview;
@@ -35,6 +49,17 @@ public:
 
     bool addSubWebview( const std::string &name, WebviewWidget::Config &config );
     bool removeSubWebview( const std::string &name );
+
+    /**
+     * @brief 设置子 WebView 创建前回调，传空则取消
+     * 在子 WebView 配置就绪、真正创建之前触发，可修改配置。
+     */
+    void setSubWebviewCreateCallback( SubWebviewCreateCallback callback );
+
+    /**
+     * @brief 设置子 WebView 创建完成回调，传空则取消
+     */
+    void setSubWebviewCreateCompleteCallback( SubWebviewCreateCompleteCallback callback );
 
 protected:
     LRESULT onSize( int width, int height, int type ) override;
@@ -124,4 +149,6 @@ private:
 
     std::unique_ptr<WebviewWidget> m_mainWebview;
     std::vector<std::unique_ptr<WebviewWidget>> m_subWebviews;
+    SubWebviewCreateCallback m_subWebviewCreateCallback;
+    SubWebviewCreateCompleteCallback m_subWebviewCreateCompleteCallback;
 };

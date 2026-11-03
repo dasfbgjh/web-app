@@ -143,7 +143,7 @@ std::string readResource( const std::string &path ) {
     return std::string( std::istreambuf_iterator<char>( file ), {} );
 #else
     int index = resource_index( path.c_str() );
-    if ( index <= 0 )
+    if ( index < 0 )
         return {};
     const unsigned char *data = resource_data( index );
     int size = resource_size( index );

@@ -1,6 +1,7 @@
 #include "WebviewWindow.h"
 #include "common/Logger.hpp"
 #include <algorithm>
+#include <utility>
 
 WebviewWindow::WebviewWindow() = default;
 
@@ -119,6 +120,14 @@ LRESULT WebviewWindow::onDestroy() {
     return Widget::onDestroy();
 }
 
+void WebviewWindow::setSubWebviewCreateCallback( SubWebviewCreateCallback callback ) {
+    m_subWebviewCreateCallback = std::move( callback );
+}
+
+void WebviewWindow::setSubWebviewCreateCompleteCallback( SubWebviewCreateCompleteCallback callback ) {
+    m_subWebviewCreateCompleteCallback = std::move( callback );
+}
+
 void WebviewWindow::onMainWebviewCreate( WebviewWidget::Config &config, WebviewWidget *mainWebview ) {
 }
 
@@ -131,12 +140,16 @@ void WebviewWindow::onMainWebviewCreateComplete( bool success, WebviewWidget *ma
 }
 
 void WebviewWindow::onSubWebviewCreate( WebviewWidget::Config &config, WebviewWidget *subWebview ) {
+    if ( m_subWebviewCreateCallback )
+        m_subWebviewCreateCallback( config, subWebview );
 }
 
 void WebviewWindow::onSubWebviewCreateComplete( bool success, WebviewWidget *subWebview ) {
     if ( success ) {
         Widget::changeZOrder( m_mainWebview.get(), subWebview );
     }
+    if ( m_subWebviewCreateCompleteCallback )
+        m_subWebviewCreateCompleteCallback( success, subWebview );
 }
 
 WebviewWidget *WebviewWindow::findSubWebview( const std::string &name ) {

@@ -262,6 +262,17 @@ public:
     void postWebMessage( const json::value &json );
 
     /**
+     * @brief 向顶层文档及所有已注册的 iframe 广播 JSON 格式的 Web 消息
+     *
+     * 页面内容可能位于 iframe 中，此时仅向顶层文档发送页面收不到，
+     * 需要同时向所有 iframe 广播。RPC 响应等需要精确回给来源文档的
+     * 消息不应使用本方法。
+     *
+     * @param json JSON 格式消息
+     */
+    void postWebMessageToAllFrames( const json::value &json );
+
+    /**
      * @brief 设置 WebView 在父窗口中的位置和大小
      * @param x 左上角 X 坐标
      * @param y 左上角 Y 坐标
@@ -729,11 +740,45 @@ private:
                          CreatedCallback onCreated );
 
     /**
+     * @brief 处理一条原始 Web 消息
+     *
+     * 顶层文档与 iframe 的消息都汇入此函数，按消息类型分发。
+     *
+     * @param rawMsg JSON 字符串
+     * @param frame 消息来源的 iframe；为 nullptr 表示来自顶层文档
+     */
+    void handleRawMessage( const std::string &rawMsg, ICoreWebView2Frame2 *frame );
+
+    /**
+     * @brief 注册 iframe 的消息接收处理器
+     *
+     * 对每个新建的 iframe 注册 WebMessageReceived 与 Destroyed 事件，
+     * 使其消息能转发到 C++ 端并支持回包。
+     *
+     * @param frame 目标 iframe（内部会 AddRef）
+     */
+    void registerFrame( ICoreWebView2Frame2 *frame );
+
+    /**
+     * @brief 注销 iframe 的消息接收处理器并释放引用
+     * @param frame 目标 iframe
+     */
+    void unregisterFrame( ICoreWebView2Frame2 *frame );
+
+    /**
+     * @brief 向指定 iframe 回发 Web 消息
+     * @param frame 目标 iframe
+     * @param json 消息内容
+     */
+    void postWebMessageToFrame( ICoreWebView2Frame2 *frame, const json::value &json );
+
+    /**
      * @brief 处理 native-rpc 消息
      * @param msg 消息内容
+     * @param frame 消息来源的 iframe；为 nullptr 表示来自顶层文档
      * @return true 表示成功处理
      */
-    bool handleBindCall( const json::value &msg );
+    bool handleBindCall( const json::value &msg, ICoreWebView2Frame2 *frame );
 
     /**
      * @brief 处理 ipc 消息
@@ -892,6 +937,18 @@ private:
     EventRegistrationToken m_webResourceRequestedToken = {};        ///< 请求拦截事件令牌
     EventRegistrationToken m_newWindowRequestedToken = {};          ///< 新窗口请求事件令牌
     EventRegistrationToken m_webResourceResponseReceivedToken = {}; ///< 响应接收事件令牌
+    EventRegistrationToken m_frameCreatedToken = {};                ///< iframe 创建事件令牌
+
+    /**
+     * @brief 单个 iframe 的事件令牌
+     */
+    struct FrameTokens {
+        EventRegistrationToken message = {};   ///< 消息接收事件令牌
+        EventRegistrationToken destroyed = {}; ///< 销毁事件令牌
+    };
+
+    std::map<ICoreWebView2Frame2 *, FrameTokens> m_frames; ///< 已注册的 iframe 及其事件令牌
+    std::mutex m_framesMutex;                              ///< iframe 表互斥锁
 
     NavigationCompletedCallback m_onNavigationCompleted;                 ///< 导航完成回调
     NavigationStartingCallback m_onNavigationStarting;                   ///< 导航开始回调
